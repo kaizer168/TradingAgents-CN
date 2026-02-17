@@ -245,6 +245,14 @@ DEFAULT_MODEL_CAPABILITIES: Dict[str, Dict[str, Any]] = {
         "performance_metrics": {"speed": 3, "cost": 2, "quality": 5},
         "description": "智谱GLM-4 Plus，旗舰版本"
     },
+    "glm-5": {
+        "capability_level": 5,
+        "suitable_roles": [ModelRole.BOTH],
+        "features": [ModelFeature.TOOL_CALLING, ModelFeature.LONG_CONTEXT, ModelFeature.REASONING, ModelFeature.FAST_RESPONSE, ModelFeature.COST_EFFECTIVE],
+        "recommended_depths": ["快速", "基础", "标准", "深度", "全面"],
+        "performance_metrics": {"speed": 5, "cost": 4, "quality": 5},
+        "description": "智谱GLM-5，新一代旗舰模型，强大推理能力和工具调用支持"
+    },
     
     # ==================== Anthropic Claude ====================
     "claude-3-haiku": {

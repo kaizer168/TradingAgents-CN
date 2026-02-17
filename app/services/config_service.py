@@ -949,6 +949,12 @@ class ConfigService:
                 result = self._test_dashscope_api(api_key, f"{provider_str} {llm_config.model_name}", llm_config.model_name)
                 result["response_time"] = time.time() - start_time
                 return result
+            elif provider_str == "anthropicglm":
+                # ANTHROPICGLM 使用 Anthropic API 格式测试
+                logger.info(f"🔍 使用 ANTHROPICGLM 专用测试方法 (Anthropic API 格式)")
+                result = self._test_anthropicglm_api(api_key, f"{provider_str} {llm_config.model_name}")
+                result["response_time"] = time.time() - start_time
+                return result
             else:
                 # 其他厂家使用 OpenAI 兼容的测试方法
                 logger.info(f"🔍 使用 OpenAI 兼容测试方法")
@@ -3338,6 +3344,9 @@ class ConfigService:
                 return await asyncio.get_event_loop().run_in_executor(None, self._test_openai_api, api_key, display_name)
             elif provider_name == "anthropic":
                 return await asyncio.get_event_loop().run_in_executor(None, self._test_anthropic_api, api_key, display_name)
+            elif provider_name == "anthropicglm":
+                # 智谱AI Anthropic API 兼容模式
+                return await asyncio.get_event_loop().run_in_executor(None, self._test_anthropicglm_api, api_key, display_name)
             elif provider_name == "qianfan":
                 return await asyncio.get_event_loop().run_in_executor(None, self._test_qianfan_api, api_key, display_name)
             else:
@@ -3825,6 +3834,71 @@ class ConfigService:
                 }
 
         except Exception as e:
+            return {
+                "success": False,
+                "message": f"{display_name} API测试异常: {str(e)}"
+            }
+
+    def _test_anthropicglm_api(self, api_key: str, display_name: str) -> dict:
+        """测试智谱AI Anthropic API 兼容模式"""
+        try:
+            import requests
+
+            # 智谱AI Anthropic API 兼容端点
+            url = "https://open.bigmodel.cn/api/anthropic/v1/messages"
+
+            logger.info(f"🔍 [ANTHROPICGLM 测试] 开始测试")
+            logger.info(f"   URL: {url}")
+            logger.info(f"   api_key 长度: {len(api_key) if api_key else 0}")
+
+            headers = {
+                "Content-Type": "application/json",
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01"
+            }
+
+            data = {
+                "model": "glm-5",  # 使用 glm-5 模型测试
+                "max_tokens": 50,
+                "messages": [
+                    {"role": "user", "content": "你好，请简单介绍一下你自己。"}
+                ]
+            }
+
+            response = requests.post(url, json=data, headers=headers, timeout=30)
+
+            logger.info(f"🔍 [ANTHROPICGLM 测试] 响应状态码: {response.status_code}")
+
+            if response.status_code == 200:
+                result = response.json()
+                logger.info(f"🔍 [ANTHROPICGLM 测试] 响应内容: {result}")
+                if "content" in result and len(result["content"]) > 0:
+                    content = result["content"][0]["text"]
+                    if content and len(content.strip()) > 0:
+                        return {
+                            "success": True,
+                            "message": f"{display_name} API连接测试成功"
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "message": f"{display_name} API响应为空"
+                        }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"{display_name} API响应格式异常: {result}"
+                    }
+            else:
+                error_text = response.text
+                logger.error(f"❌ [ANTHROPICGLM 测试] 失败: HTTP {response.status_code}, {error_text}")
+                return {
+                    "success": False,
+                    "message": f"{display_name} API测试失败: HTTP {response.status_code} - {error_text}"
+                }
+
+        except Exception as e:
+            logger.error(f"❌ [ANTHROPICGLM 测试] 异常: {str(e)}")
             return {
                 "success": False,
                 "message": f"{display_name} API测试异常: {str(e)}"

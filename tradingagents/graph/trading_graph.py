@@ -149,6 +149,28 @@ def create_llm_by_provider(provider: str, model: str, backend_url: str, temperat
             timeout=timeout
         )
 
+    elif provider.lower() == "anthropicglm":
+        # 智谱AI Anthropic API 兼容模式
+        anthropicglm_api_key = api_key or os.getenv('ANTHROPICGLM_API_KEY')
+        if not anthropicglm_api_key:
+            raise ValueError("使用ANTHROPICGLM需要设置ANTHROPICGLM_API_KEY环境变量或在数据库中配置API Key")
+
+        # ANTHROPICGLM 使用更长的超时时间 (3000秒)
+        anthropicglm_timeout = max(timeout, 3000) if timeout else 3000
+
+        logger.info(f"🔧 [ANTHROPICGLM] 使用 Anthropic API 兼容模式")
+        logger.info(f"   Base URL: {backend_url or 'https://open.bigmodel.cn/api/anthropic'}")
+        logger.info(f"   Timeout: {anthropicglm_timeout}s")
+
+        return ChatAnthropic(
+            model=model,
+            base_url=backend_url or "https://open.bigmodel.cn/api/anthropic",
+            api_key=anthropicglm_api_key,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout=anthropicglm_timeout
+        )
+
     elif provider.lower() in ["qianfan", "custom_openai"]:
         return create_openai_compatible_llm(
             provider=provider,
@@ -374,6 +396,43 @@ class TradingAgentsGraph:
                 max_tokens=quick_max_tokens,
                 timeout=quick_timeout
             )
+        elif self.config["llm_provider"].lower() == "anthropicglm":
+            # 智谱AI Anthropic API 兼容模式
+            # ANTHROPICGLM 使用更长的超时时间 (3000秒)
+            anthropicglm_quick_timeout = max(quick_timeout, 3000) if quick_timeout else 3000
+            anthropicglm_deep_timeout = max(deep_timeout, 3000) if deep_timeout else 3000
+
+            logger.info(f"🔧 [ANTHROPICGLM-快速模型] max_tokens={quick_max_tokens}, temperature={quick_temperature}, timeout={anthropicglm_quick_timeout}s")
+            logger.info(f"🔧 [ANTHROPICGLM-深度模型] max_tokens={deep_max_tokens}, temperature={deep_temperature}, timeout={anthropicglm_deep_timeout}s")
+
+            # 优先使用数据库配置的 API Key，否则从环境变量读取
+            anthropicglm_api_key = self.config.get("quick_api_key") or self.config.get("deep_api_key") or os.getenv('ANTHROPICGLM_API_KEY')
+            if not anthropicglm_api_key:
+                raise ValueError("使用ANTHROPICGLM需要在数据库中配置API Key或设置ANTHROPICGLM_API_KEY环境变量")
+
+            logger.info(f"🔑 [ANTHROPICGLM] API Key 来源: {'数据库配置' if self.config.get('quick_api_key') or self.config.get('deep_api_key') else '环境变量'}")
+
+            # 获取 backend_url（如果配置中有的话）
+            backend_url = self.config.get("backend_url") or "https://open.bigmodel.cn/api/anthropic"
+            logger.info(f"🔧 [ANTHROPICGLM] 使用端点: {backend_url}")
+
+            self.deep_thinking_llm = ChatAnthropic(
+                model=self.config["deep_think_llm"],
+                base_url=backend_url,
+                api_key=anthropicglm_api_key,
+                temperature=deep_temperature,
+                max_tokens=deep_max_tokens,
+                timeout=anthropicglm_deep_timeout
+            )
+            self.quick_thinking_llm = ChatAnthropic(
+                model=self.config["quick_think_llm"],
+                base_url=backend_url,
+                api_key=anthropicglm_api_key,
+                temperature=quick_temperature,
+                max_tokens=quick_max_tokens,
+                timeout=anthropicglm_quick_timeout
+            )
+            logger.info(f"✅ [ANTHROPICGLM] 已配置成功 (超时: {anthropicglm_deep_timeout}s)")
         elif self.config["llm_provider"].lower() == "google":
             # 使用 Google OpenAI 兼容适配器，解决工具调用格式不匹配问题
             logger.info(f"🔧 使用Google AI OpenAI 兼容适配器 (解决工具调用问题)")
