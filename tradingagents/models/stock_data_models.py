@@ -21,6 +21,7 @@ class MarketType(str, Enum):
     CN = "CN"  # 中国A股
     HK = "HK"  # 港股
     US = "US"  # 美股
+    MY = "MY"  # 马来西亚股市
 
 
 class StockStatus(str, Enum):

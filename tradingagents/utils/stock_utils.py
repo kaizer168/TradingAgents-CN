@@ -17,6 +17,7 @@ class StockMarket(Enum):
     CHINA_A = "china_a"      # 中国A股
     HONG_KONG = "hong_kong"  # 港股
     US = "us"                # 美股
+    MALAYSIA = "malaysia"    # 马来西亚股市
     UNKNOWN = "unknown"      # 未知
 
 
@@ -46,6 +47,10 @@ class StockUtils:
         # 港股：4-5位数字.HK 或 纯4-5位数字（支持0700.HK、09988.HK、00700、9988格式）
         if re.match(r'^\d{4,5}\.HK$', ticker) or re.match(r'^\d{4,5}$', ticker):
             return StockMarket.HONG_KONG
+
+        # 马来西亚：4位数字.KL
+        if re.match(r'^\d{4}\.KL$', ticker):
+            return StockMarket.MALAYSIA
 
         # 美股：1-5位字母
         if re.match(r'^[A-Z]{1,5}$', ticker):
@@ -83,15 +88,28 @@ class StockUtils:
     def is_us_stock(ticker: str) -> bool:
         """
         判断是否为美股
-        
+
         Args:
             ticker: 股票代码
-            
+
         Returns:
             bool: 是否为美股
         """
         return StockUtils.identify_stock_market(ticker) == StockMarket.US
-    
+
+    @staticmethod
+    def is_malaysia_stock(ticker: str) -> bool:
+        """
+        判断是否为马来西亚股票
+
+        Args:
+            ticker: 股票代码
+
+        Returns:
+            bool: 是否为马来西亚股票
+        """
+        return StockUtils.identify_stock_market(ticker) == StockMarket.MALAYSIA
+
     @staticmethod
     def get_currency_info(ticker: str) -> Tuple[str, str]:
         """
@@ -111,6 +129,8 @@ class StockUtils:
             return "港币", "HK$"
         elif market == StockMarket.US:
             return "美元", "$"
+        elif market == StockMarket.MALAYSIA:
+            return "马来西亚林吉特", "RM"
         else:
             return "未知", "?"
     
@@ -133,6 +153,8 @@ class StockUtils:
             return "yahoo_finance"  # 港股使用Yahoo Finance
         elif market == StockMarket.US:
             return "yahoo_finance"  # 美股使用Yahoo Finance
+        elif market == StockMarket.MALAYSIA:
+            return "yahoo_finance"  # 马来西亚股市使用Yahoo Finance
         else:
             return "unknown"
     
@@ -140,18 +162,18 @@ class StockUtils:
     def normalize_hk_ticker(ticker: str) -> str:
         """
         标准化港股代码格式
-        
+
         Args:
             ticker: 原始港股代码
-            
+
         Returns:
             str: 标准化后的港股代码
         """
         if not ticker:
             return ticker
-            
+
         ticker = str(ticker).strip().upper()
-        
+
         # 如果是纯4-5位数字，添加.HK后缀
         if re.match(r'^\d{4,5}$', ticker):
             return f"{ticker}.HK"
@@ -159,9 +181,35 @@ class StockUtils:
         # 如果已经是正确格式，直接返回
         if re.match(r'^\d{4,5}\.HK$', ticker):
             return ticker
-            
+
         return ticker
-    
+
+    @staticmethod
+    def normalize_my_ticker(ticker: str) -> str:
+        """
+        标准化马来西亚股票代码格式
+
+        Args:
+            ticker: 原始马来西亚股票代码
+
+        Returns:
+            str: 标准化后的马来西亚股票代码
+        """
+        if not ticker:
+            return ticker
+
+        ticker = str(ticker).strip().upper()
+
+        # 如果已经是正确格式，直接返回
+        if re.match(r'^\d{4}\.KL$', ticker):
+            return ticker
+
+        # 如果是纯4位数字，添加.KL后缀
+        if re.match(r'^\d{4}$', ticker):
+            return f"{ticker}.KL"
+
+        return ticker
+
     @staticmethod
     def get_market_info(ticker: str) -> Dict:
         """
@@ -181,9 +229,10 @@ class StockUtils:
             StockMarket.CHINA_A: "中国A股",
             StockMarket.HONG_KONG: "港股",
             StockMarket.US: "美股",
+            StockMarket.MALAYSIA: "马来西亚股市",
             StockMarket.UNKNOWN: "未知市场"
         }
-        
+
         return {
             "ticker": ticker,
             "market": market.value,
@@ -193,7 +242,8 @@ class StockUtils:
             "data_source": data_source,
             "is_china": market == StockMarket.CHINA_A,
             "is_hk": market == StockMarket.HONG_KONG,
-            "is_us": market == StockMarket.US
+            "is_us": market == StockMarket.US,
+            "is_my": market == StockMarket.MALAYSIA
         }
 
 
@@ -211,6 +261,11 @@ def is_hk_stock(ticker: str) -> bool:
 def is_us_stock(ticker: str) -> bool:
     """判断是否为美股"""
     return StockUtils.is_us_stock(ticker)
+
+
+def is_malaysia_stock(ticker: str) -> bool:
+    """判断是否为马来西亚股票"""
+    return StockUtils.is_malaysia_stock(ticker)
 
 
 def get_stock_market_info(ticker: str) -> Dict:

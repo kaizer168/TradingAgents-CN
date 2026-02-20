@@ -80,6 +80,10 @@
                           <span>🇭🇰 港股市场</span>
                           <span style="color: #909399; font-size: 12px; margin-left: 8px;">（1-5位数字）</span>
                         </el-option>
+                        <el-option label="🇲🇾 马股市场" value="马股">
+                          <span>🇲🇾 马股市场</span>
+                          <span style="color: #909399; font-size: 12px; margin-left: 8px;">（4位数字.KL）</span>
+                        </el-option>
                       </el-select>
                     </el-form-item>
                   </el-col>
@@ -725,7 +729,7 @@ marked.setOptions({
 })
 
 // 市场类型定义
-type MarketType = 'A股' | '美股' | '港股'
+type MarketType = 'A股' | '美股' | '港股' | '马股'
 
 // 表单类型定义
 interface AnalysisForm {

@@ -145,6 +145,19 @@ class StockDataPreparer:
                     error_message="美股代码格式错误，应为1-5位字母",
                     suggestion="请输入1-5位字母的美股代码，如：AAPL、TSLA"
                 )
+        elif market_type == "马股":
+            stock_code_upper = stock_code.upper()
+            my_format = re.match(r'^\d{4}\.KL$', stock_code_upper)
+            digit_format = re.match(r'^\d{4}$', stock_code)
+
+            if not (my_format or digit_format):
+                return StockDataPreparationResult(
+                    is_valid=False,
+                    stock_code=stock_code,
+                    market_type="马股",
+                    error_message="马股代码格式错误",
+                    suggestion="请输入4位数字.KL格式（如：5347.KL）或4位数字（如：5347）"
+                )
         
         return StockDataPreparationResult(
             is_valid=True,
@@ -155,19 +168,23 @@ class StockDataPreparer:
     def _detect_market_type(self, stock_code: str) -> str:
         """自动检测市场类型"""
         stock_code = stock_code.strip().upper()
-        
+
+        # 马股：4位数字.KL（必须优先于港股检测）
+        if re.match(r'^\d{4}\.KL$', stock_code):
+            return "马股"
+
         # A股：6位数字
         if re.match(r'^\d{6}$', stock_code):
             return "A股"
-        
+
         # 港股：4-5位数字.HK 或 纯4-5位数字
         if re.match(r'^\d{4,5}\.HK$', stock_code) or re.match(r'^\d{4,5}$', stock_code):
             return "港股"
-        
+
         # 美股：1-5位字母
         if re.match(r'^[A-Z]{1,5}$', stock_code):
             return "美股"
-        
+
         return "未知"
 
     def _get_hk_network_limitation_suggestion(self) -> str:
@@ -271,13 +288,15 @@ class StockDataPreparer:
                 return self._prepare_hk_stock_data(stock_code, period_days, analysis_date)
             elif market_type == "美股":
                 return self._prepare_us_stock_data(stock_code, period_days, analysis_date)
+            elif market_type == "马股":
+                return self._prepare_my_stock_data(stock_code, period_days, analysis_date)
             else:
                 return StockDataPreparationResult(
                     is_valid=False,
                     stock_code=stock_code,
                     market_type=market_type,
                     error_message=f"不支持的市场类型: {market_type}",
-                    suggestion="请选择支持的市场类型：A股、港股、美股"
+                    suggestion="请选择支持的市场类型：A股、港股、美股、马股"
                 )
         except Exception as e:
             logger.error(f"❌ [数据准备] 数据准备异常: {e}")
@@ -301,13 +320,15 @@ class StockDataPreparer:
                 return self._prepare_hk_stock_data(stock_code, period_days, analysis_date)
             elif market_type == "美股":
                 return self._prepare_us_stock_data(stock_code, period_days, analysis_date)
+            elif market_type == "马股":
+                return self._prepare_my_stock_data(stock_code, period_days, analysis_date)
             else:
                 return StockDataPreparationResult(
                     is_valid=False,
                     stock_code=stock_code,
                     market_type=market_type,
                     error_message=f"不支持的市场类型: {market_type}",
-                    suggestion="请选择支持的市场类型：A股、港股、美股"
+                    suggestion="请选择支持的市场类型：A股、港股、美股、马股"
                 )
         except Exception as e:
             logger.error(f"❌ [数据准备-异步] 数据准备异常: {e}")
@@ -1213,6 +1234,133 @@ class StockDataPreparer:
                 is_valid=False,
                 stock_code=formatted_code,
                 market_type="美股",
+                error_message=f"数据准备失败: {str(e)}",
+                suggestion="请检查网络连接或数据源配置"
+            )
+
+    def _prepare_my_stock_data(self, stock_code: str, period_days: int,
+                              analysis_date: str) -> StockDataPreparationResult:
+        """预获取马股数据（马来西亚股市）"""
+        logger.info(f"📊 [马股数据] 开始准备{stock_code}的数据 (时长: {period_days}天)")
+
+        # 标准化马股代码格式
+        if not stock_code.upper().endswith('.KL'):
+            # 4位数字，添加.KL后缀
+            clean_code = stock_code.strip()
+            if re.match(r'^\d{4}$', clean_code):
+                formatted_code = f"{clean_code}.KL"
+            else:
+                formatted_code = stock_code.upper()
+            logger.debug(f"🔍 [马股数据] 代码格式化: {stock_code} → {formatted_code}")
+        else:
+            formatted_code = stock_code.upper()
+
+        # 计算日期范围
+        end_date = datetime.strptime(analysis_date, '%Y-%m-%d')
+        start_date = end_date - timedelta(days=period_days)
+        start_date_str = start_date.strftime('%Y-%m-%d')
+        end_date_str = end_date.strftime('%Y-%m-%d')
+
+        logger.debug(f"📅 [马股数据] 日期范围: {start_date_str} → {end_date_str}")
+
+        has_historical_data = False
+        has_basic_info = False
+        stock_name = "未知"
+        cache_status = ""
+
+        try:
+            # 1. 获取基本信息
+            logger.debug(f"📊 [马股数据] 获取{formatted_code}基本信息...")
+            from tradingagents.dataflows.providers.my import get_my_stock_info, get_my_stock_provider
+
+            stock_info = get_my_stock_info(formatted_code)
+
+            if stock_info and "error" not in stock_info:
+                stock_name = stock_info.get("name", formatted_code)
+                has_basic_info = True
+                logger.info(f"✅ [马股数据] 基本信息获取成功: {formatted_code} - {stock_name}")
+                cache_status += "基本信息已缓存; "
+            else:
+                # 尝试从内置映射获取名称
+                provider = get_my_stock_provider()
+                stock_name = provider.get_company_name(formatted_code)
+                if stock_name and stock_name != formatted_code:
+                    has_basic_info = True
+                    logger.info(f"✅ [马股数据] 从内置映射获取名称: {formatted_code} - {stock_name}")
+                    cache_status += "名称来自内置映射; "
+                else:
+                    logger.warning(f"⚠️ [马股数据] 无法获取基本信息: {formatted_code}")
+                    # 不直接返回失败，继续尝试获取历史数据
+
+            # 2. 获取历史数据
+            logger.debug(f"📊 [马股数据] 获取{formatted_code}历史数据 ({start_date_str} 到 {end_date_str})...")
+            from tradingagents.dataflows.providers.my import get_my_stock_data
+
+            historical_data = get_my_stock_data(formatted_code, start_date_str, end_date_str)
+
+            if historical_data and "❌" not in historical_data and "错误" not in str(historical_data):
+                # 检查数据有效性
+                data_indicators = [
+                    "开盘价", "收盘价", "最高价", "最低价", "成交量",
+                    "open", "close", "high", "low", "volume",
+                    "日期", "date", "时间", "time"
+                ]
+
+                has_valid_data = (
+                    len(str(historical_data)) > 50 and
+                    any(indicator in str(historical_data).lower() for indicator in data_indicators)
+                )
+
+                if has_valid_data:
+                    has_historical_data = True
+                    if not has_basic_info:
+                        has_basic_info = True  # 有历史数据说明股票存在
+                    logger.info(f"✅ [马股数据] 历史数据获取成功: {formatted_code} ({period_days}天)")
+                    cache_status += f"历史数据已缓存({period_days}天); "
+                else:
+                    logger.warning(f"⚠️ [马股数据] 历史数据无效: {formatted_code}")
+                    return StockDataPreparationResult(
+                        is_valid=False,
+                        stock_code=formatted_code,
+                        market_type="马股",
+                        stock_name=stock_name,
+                        has_basic_info=has_basic_info,
+                        error_message=f"马股 {formatted_code} 的历史数据无效或不足",
+                        suggestion="该股票可能为新上市股票或数据源暂时不可用，请稍后重试"
+                    )
+            else:
+                logger.warning(f"⚠️ [马股数据] 无法获取历史数据: {formatted_code}")
+                return StockDataPreparationResult(
+                    is_valid=False,
+                    stock_code=formatted_code,
+                    market_type="马股",
+                    stock_name=stock_name,
+                    has_basic_info=has_basic_info,
+                    error_message=f"马股代码 {formatted_code} 不存在或无法获取数据",
+                    suggestion="请检查马股代码是否正确，格式如：5347.KL、1155.KL"
+                )
+
+            # 3. 数据准备成功
+            logger.info(f"🎉 [马股数据] 数据准备完成: {formatted_code} - {stock_name}")
+            return StockDataPreparationResult(
+                is_valid=True,
+                stock_code=formatted_code,
+                market_type="马股",
+                stock_name=stock_name,
+                has_historical_data=has_historical_data,
+                has_basic_info=has_basic_info,
+                data_period_days=period_days,
+                cache_status=cache_status.rstrip('; ')
+            )
+
+        except Exception as e:
+            logger.error(f"❌ [马股数据] 数据准备失败: {e}")
+            import traceback
+            logger.debug(f"详细错误: {traceback.format_exc()}")
+            return StockDataPreparationResult(
+                is_valid=False,
+                stock_code=formatted_code,
+                market_type="马股",
                 error_message=f"数据准备失败: {str(e)}",
                 suggestion="请检查网络连接或数据源配置"
             )

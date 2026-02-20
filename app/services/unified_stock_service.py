@@ -50,29 +50,40 @@ class UnifiedStockService:
                 "daily": "stock_daily_quotes_us",
                 "financial": "stock_financial_data_us",
                 "news": "stock_news_us"
+            },
+            "MY": {
+                "basic_info": "stock_basic_info_my",
+                "quotes": "market_quotes_my",
+                "daily": "stock_daily_quotes_my",
+                "financial": "stock_financial_data_my",
+                "news": "stock_news_my"
             }
         }
 
     async def get_stock_info(
-        self, 
-        market: str, 
-        code: str, 
+        self,
+        market: str,
+        code: str,
         source: Optional[str] = None
     ) -> Optional[Dict]:
         """
         获取股票基础信息（支持多数据源）
-        
+
         Args:
-            market: 市场类型 (CN/HK/US)
+            market: 市场类型 (CN/HK/US/MY)
             code: 股票代码
             source: 指定数据源（可选）
-        
+
         Returns:
             股票基础信息字典
         """
+        # 马来西亚市场直接从Yahoo Finance获取
+        if market == "MY":
+            return await self._get_my_stock_info(code)
+
         collection_name = self.collection_map[market]["basic_info"]
         collection = self.db[collection_name]
-        
+
         if source:
             # 指定数据源
             query = {"code": code, "source": source}
@@ -83,21 +94,56 @@ class UnifiedStockService:
             # 🔥 按优先级查询（参考A股设计）
             source_priority = await self._get_source_priority(market)
             doc = None
-            
+
             for src in source_priority:
                 query = {"code": code, "source": src}
                 doc = await collection.find_one(query, {"_id": 0})
                 if doc:
                     logger.debug(f"✅ 使用数据源: {src} (优先级查询)")
                     break
-            
+
             # 如果没有找到，尝试不指定source查询（兼容旧数据）
             if not doc:
                 doc = await collection.find_one({"code": code}, {"_id": 0})
                 if doc:
                     logger.debug(f"✅ 使用默认数据源（兼容模式）")
-        
+
         return doc
+
+    async def _get_my_stock_info(self, code: str) -> Optional[Dict]:
+        """
+        获取马来西亚股票信息（直接从Yahoo Finance获取）
+
+        Args:
+            code: 股票代码
+
+        Returns:
+            股票基础信息字典
+        """
+        try:
+            from tradingagents.dataflows.providers.my import get_my_stock_info as fetch_my_info
+            info = fetch_my_info(code)
+            if info:
+                # 转换为统一格式
+                return {
+                    "code": info.get("symbol", code),
+                    "name": info.get("name", ""),
+                    "name_en": info.get("name", ""),
+                    "market": "MY",
+                    "source": "yfinance",
+                    "currency": info.get("currency", "MYR"),
+                    "exchange": info.get("exchange", "KLS"),
+                    "total_mv": info.get("market_cap"),
+                    "pe": info.get("pe_ratio"),
+                    "pb": info.get("pb_ratio"),
+                    "current_price": info.get("current_price"),
+                    "previous_close": info.get("previous_close"),
+                    "fifty_two_week_high": info.get("fifty_two_week_high"),
+                    "fifty_two_week_low": info.get("fifty_two_week_low"),
+                }
+        except Exception as e:
+            logger.error(f"❌ 获取马来西亚股票信息失败: {code} - {e}")
+        return None
 
     async def _get_source_priority(self, market: str) -> List[str]:
         """
@@ -112,7 +158,8 @@ class UnifiedStockService:
         market_category_map = {
             "CN": "a_shares",
             "HK": "hk_stocks",
-            "US": "us_stocks"
+            "US": "us_stocks",
+            "MY": "my_stocks"
         }
         
         market_category_id = market_category_map.get(market)
@@ -135,7 +182,8 @@ class UnifiedStockService:
         default_priority = {
             "CN": ["tushare", "akshare", "baostock"],
             "HK": ["yfinance_hk", "akshare_hk"],
-            "US": ["yfinance_us"]
+            "US": ["yfinance_us"],
+            "MY": ["yfinance_my"]
         }
         priority_list = default_priority.get(market, [])
         logger.debug(f"📊 {market} 数据源优先级（默认）: {priority_list}")
@@ -144,35 +192,74 @@ class UnifiedStockService:
     async def get_stock_quote(self, market: str, code: str) -> Optional[Dict]:
         """
         获取实时行情
-        
+
         Args:
-            market: 市场类型 (CN/HK/US)
+            market: 市场类型 (CN/HK/US/MY)
             code: 股票代码
-        
+
         Returns:
             实时行情字典
         """
+        # 马来西亚市场直接从Yahoo Finance获取
+        if market == "MY":
+            return await self._get_my_stock_quote(code)
+
         collection_name = self.collection_map[market]["quotes"]
         collection = self.db[collection_name]
         return await collection.find_one({"code": code}, {"_id": 0})
 
+    async def _get_my_stock_quote(self, code: str) -> Optional[Dict]:
+        """
+        获取马来西亚股票实时行情（直接从Yahoo Finance获取）
+
+        Args:
+            code: 股票代码
+
+        Returns:
+            实时行情字典
+        """
+        try:
+            from tradingagents.dataflows.providers.my import get_my_stock_info as fetch_my_info
+            info = fetch_my_info(code)
+            if info:
+                return {
+                    "code": info.get("symbol", code),
+                    "name": info.get("name", ""),
+                    "market": "MY",
+                    "source": "yfinance",
+                    "currency": info.get("currency", "MYR"),
+                    "close": info.get("current_price"),
+                    "pre_close": info.get("previous_close"),
+                    "open": info.get("open"),
+                    "high": info.get("day_high"),
+                    "low": info.get("day_low"),
+                    "volume": info.get("volume"),
+                }
+        except Exception as e:
+            logger.error(f"❌ 获取马来西亚股票行情失败: {code} - {e}")
+        return None
+
     async def search_stocks(
-        self, 
-        market: str, 
-        query: str, 
+        self,
+        market: str,
+        query: str,
         limit: int = 20
     ) -> List[Dict]:
         """
         搜索股票（去重，只返回每个股票的最优数据源）
-        
+
         Args:
-            market: 市场类型 (CN/HK/US)
+            market: 市场类型 (CN/HK/US/MY)
             query: 搜索关键词
             limit: 返回数量限制
-        
+
         Returns:
             股票列表
         """
+        # 马来西亚市场直接从Yahoo Finance搜索
+        if market == "MY":
+            return await self._search_my_stocks(query, limit)
+
         collection_name = self.collection_map[market]["basic_info"]
         collection = self.db[collection_name]
 
@@ -188,18 +275,18 @@ class UnifiedStockService:
         # 查询所有匹配的记录
         cursor = collection.find(filter_query)
         all_results = await cursor.to_list(length=None)
-        
+
         if not all_results:
             return []
-        
+
         # 按 code 分组，每个 code 只保留优先级最高的数据源
         source_priority = await self._get_source_priority(market)
         unique_results = {}
-        
+
         for doc in all_results:
             code = doc.get("code")
             source = doc.get("source")
-            
+
             if code not in unique_results:
                 unique_results[code] = doc
             else:
@@ -212,11 +299,48 @@ class UnifiedStockService:
                 except ValueError:
                     # 如果source不在优先级列表中，保持当前记录
                     pass
-        
+
         # 返回前 limit 条
         result_list = list(unique_results.values())[:limit]
         logger.info(f"🔍 搜索 {market} 市场: '{query}' -> {len(result_list)} 条结果（已去重）")
         return result_list
+
+    async def _search_my_stocks(self, query: str, limit: int = 20) -> List[Dict]:
+        """
+        搜索马来西亚股票（从内置映射中搜索）
+
+        Args:
+            query: 搜索关键词
+            limit: 返回数量限制
+
+        Returns:
+            股票列表
+        """
+        try:
+            from tradingagents.dataflows.providers.my import get_my_stock_provider
+            provider = get_my_stock_provider()
+
+            results = []
+            query_lower = query.lower()
+
+            # 从内置映射中搜索
+            for symbol, name in provider.MY_STOCK_NAMES.items():
+                if query_lower in symbol.lower() or query_lower in name.lower():
+                    results.append({
+                        "code": symbol,
+                        "name": name,
+                        "name_en": name,
+                        "market": "MY",
+                        "source": "yfinance",
+                    })
+                    if len(results) >= limit:
+                        break
+
+            logger.info(f"🔍 搜索 MY 市场: '{query}' -> {len(results)} 条结果")
+            return results
+        except Exception as e:
+            logger.error(f"❌ 搜索马来西亚股票失败: {query} - {e}")
+            return []
 
     async def get_daily_quotes(
         self,
@@ -228,20 +352,24 @@ class UnifiedStockService:
     ) -> List[Dict]:
         """
         获取历史K线数据
-        
+
         Args:
-            market: 市场类型 (CN/HK/US)
+            market: 市场类型 (CN/HK/US/MY)
             code: 股票代码
             start_date: 开始日期 (YYYY-MM-DD)
             end_date: 结束日期 (YYYY-MM-DD)
             limit: 返回数量限制
-        
+
         Returns:
             K线数据列表
         """
+        # 马来西亚市场直接从Yahoo Finance获取
+        if market == "MY":
+            return await self._get_my_daily_quotes(code, start_date, end_date, limit)
+
         collection_name = self.collection_map[market]["daily"]
         collection = self.db[collection_name]
-        
+
         query = {"code": code}
         if start_date or end_date:
             query["trade_date"] = {}
@@ -249,14 +377,63 @@ class UnifiedStockService:
                 query["trade_date"]["$gte"] = start_date
             if end_date:
                 query["trade_date"]["$lte"] = end_date
-        
+
         cursor = collection.find(query, {"_id": 0}).sort("trade_date", -1).limit(limit)
         return await cursor.to_list(length=limit)
+
+    async def _get_my_daily_quotes(
+        self,
+        code: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        limit: int = 100
+    ) -> List[Dict]:
+        """
+        获取马来西亚股票历史K线数据（直接从Yahoo Finance获取）
+
+        Args:
+            code: 股票代码
+            start_date: 开始日期 (YYYY-MM-DD)
+            end_date: 结束日期 (YYYY-MM-DD)
+            limit: 返回数量限制
+
+        Returns:
+            K线数据列表
+        """
+        try:
+            from tradingagents.dataflows.providers.my import get_my_stock_data_yfinance
+            df = get_my_stock_data_yfinance(code, start_date, end_date)
+
+            if df.empty:
+                return []
+
+            # 转换为字典列表
+            quotes = []
+            for _, row in df.tail(limit).iterrows():
+                quote = {
+                    "trade_date": row.get("date", "").strftime("%Y-%m-%d") if hasattr(row.get("date", ""), "strftime") else str(row.get("date", "")),
+                    "open": row.get("open"),
+                    "high": row.get("high"),
+                    "low": row.get("low"),
+                    "close": row.get("close"),
+                    "volume": row.get("volume"),
+                    "code": code,
+                    "market": "MY",
+                    "source": "yfinance",
+                }
+                quotes.append(quote)
+
+            # 按日期降序排列
+            quotes.sort(key=lambda x: x.get("trade_date", ""), reverse=True)
+            return quotes[:limit]
+        except Exception as e:
+            logger.error(f"❌ 获取马来西亚股票历史K线失败: {code} - {e}")
+            return []
 
     async def get_supported_markets(self) -> List[Dict]:
         """
         获取支持的市场列表
-        
+
         Returns:
             市场列表
         """
@@ -281,6 +458,13 @@ class UnifiedStockService:
                 "name_en": "US Stock",
                 "currency": "USD",
                 "timezone": "America/New_York"
+            },
+            {
+                "code": "MY",
+                "name": "马股",
+                "name_en": "Malaysia Stock",
+                "currency": "MYR",
+                "timezone": "Asia/Kuala_Lumpur"
             }
         ]
 

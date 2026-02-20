@@ -65,9 +65,9 @@ export function normalizeSymbols(symbols: (string | { symbol?: string; stock_cod
  */
 export function validateSymbol(symbol: string, market?: string): boolean {
   if (!symbol) return false
-  
+
   const trimmed = symbol.trim()
-  
+
   if (market === 'A股' || market === 'CN') {
     // A股：6位数字
     return /^\d{6}$/.test(trimmed)
@@ -77,12 +77,16 @@ export function validateSymbol(symbol: string, market?: string): boolean {
   } else if (market === '港股' || market === 'HK') {
     // 港股：4-5位数字.HK
     return /^\d{4,5}(\.HK)?$/.test(trimmed.toUpperCase())
+  } else if (market === '马股' || market === 'MY') {
+    // 马股：4位数字.KL
+    return /^\d{4}(\.KL)?$/.test(trimmed.toUpperCase())
   }
-  
+
   // 未指定市场时，尝试通用验证
   return /^\d{6}$/.test(trimmed) || // A股
          /^[A-Z]{1,5}$/.test(trimmed.toUpperCase()) || // 美股
-         /^\d{4,5}(\.HK)?$/.test(trimmed.toUpperCase()) // 港股
+         /^\d{4,5}(\.HK)?$/.test(trimmed.toUpperCase()) || // 港股
+         /^\d{4}(\.KL)?$/.test(trimmed.toUpperCase()) // 马股
 }
 
 /**
@@ -93,9 +97,9 @@ export function validateSymbol(symbol: string, market?: string): boolean {
  */
 export function formatSymbol(symbol: string, market?: string): string {
   if (!symbol) return ''
-  
+
   const trimmed = symbol.trim()
-  
+
   if (market === '美股' || market === 'US') {
     return trimmed.toUpperCase()
   } else if (market === '港股' || market === 'HK') {
@@ -104,8 +108,14 @@ export function formatSymbol(symbol: string, market?: string): string {
       return `${trimmed}.HK`
     }
     return trimmed.toUpperCase()
+  } else if (market === '马股' || market === 'MY') {
+    // 确保马股代码包含 .KL 后缀
+    if (/^\d{4}$/.test(trimmed)) {
+      return `${trimmed}.KL`
+    }
+    return trimmed.toUpperCase()
   }
-  
+
   return trimmed
 }
 

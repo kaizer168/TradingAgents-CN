@@ -69,6 +69,14 @@ async def get_supported_markets(current_user: dict = Depends(get_current_user)):
             "currency": "USD",
             "timezone": "America/New_York",
             "trading_hours": "09:30-16:00 EST"
+        },
+        {
+            "code": "MY",
+            "name": "马股",
+            "name_en": "Malaysia Stocks",
+            "currency": "MYR",
+            "timezone": "Asia/Kuala_Lumpur",
+            "trading_hours": "09:00-17:00"
         }
     ]
     
@@ -109,7 +117,7 @@ async def search_stocks(
         }
     """
     market = market.upper()
-    if market not in ["CN", "HK", "US"]:
+    if market not in ["CN", "HK", "US", "MY"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"不支持的市场类型: {market}"
@@ -166,7 +174,7 @@ async def get_stock_info(
         }
     """
     market = market.upper()
-    if market not in ["CN", "HK", "US"]:
+    if market not in ["CN", "HK", "US", "MY"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"不支持的市场类型: {market}"
@@ -227,7 +235,7 @@ async def get_stock_quote(
         }
     """
     market = market.upper()
-    if market not in ["CN", "HK", "US"]:
+    if market not in ["CN", "HK", "US", "MY"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"不支持的市场类型: {market}"
@@ -298,7 +306,7 @@ async def get_stock_daily_quotes(
         }
     """
     market = market.upper()
-    if market not in ["CN", "HK", "US"]:
+    if market not in ["CN", "HK", "US", "MY"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"不支持的市场类型: {market}"

@@ -78,6 +78,22 @@ except ImportError:
     OPTIMIZED_US_AVAILABLE = OptimizedUSDataProvider is not None
     FINNHUB_AVAILABLE = get_data_in_range is not None
 
+# 导入马来西亚股市提供器
+try:
+    from .my import (
+        MYStockProvider,
+        get_my_stock_provider,
+        get_my_stock_data,
+        get_my_stock_info,
+        MY_PROVIDER_AVAILABLE
+    )
+except ImportError:
+    MYStockProvider = None
+    get_my_stock_provider = None
+    get_my_stock_data = None
+    get_my_stock_info = None
+    MY_PROVIDER_AVAILABLE = False
+
 # 其他提供器（预留）
 try:
     from .yahoo_provider import YahooProvider
@@ -119,6 +135,13 @@ __all__ = [
     'YFINANCE_AVAILABLE',
     'OPTIMIZED_US_AVAILABLE',
     'FINNHUB_AVAILABLE',
+
+    # 马来西亚股市
+    'MYStockProvider',
+    'get_my_stock_provider',
+    'get_my_stock_data',
+    'get_my_stock_info',
+    'MY_PROVIDER_AVAILABLE',
 
     # 其他（预留）
     'YahooProvider',

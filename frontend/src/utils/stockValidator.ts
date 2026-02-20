@@ -1,11 +1,11 @@
 /**
  * 股票代码格式验证工具
- * 支持 A股、美股、港股的代码格式验证
+ * 支持 A股、美股、港股、马股的代码格式验证
  */
 
 export interface StockValidationResult {
   valid: boolean
-  market?: 'A股' | '美股' | '港股'
+  market?: 'A股' | '美股' | '港股' | '马股'
   message?: string
   normalizedCode?: string
 }
@@ -90,7 +90,7 @@ export function validateUSStock(code: string): StockValidationResult {
 export function validateHKStock(code: string): StockValidationResult {
   // 移除空格和特殊字符
   const cleanCode = code.trim().replace(/[^0-9]/g, '')
-  
+
   // 必须是1-5位数字
   if (!/^\d{1,5}$/.test(cleanCode)) {
     return {
@@ -98,14 +98,48 @@ export function validateHKStock(code: string): StockValidationResult {
       message: '港股代码必须是1-5位数字'
     }
   }
-  
+
   // 转换为5位格式（补齐前导0）
   const normalizedCode = cleanCode.padStart(5, '0')
-  
+
   return {
     valid: true,
     market: '港股',
     normalizedCode: normalizedCode
+  }
+}
+
+/**
+ * 马股代码格式验证
+ * 格式：4位数字 + .KL 后缀
+ * 示例：5347.KL（Tenaga）、1155.KL（Maybank）
+ * 也支持不带后缀的格式：5347、1155
+ */
+export function validateMYStock(code: string): StockValidationResult {
+  // 移除空格，转大写
+  const cleanCode = code.trim().toUpperCase()
+
+  // 检查是否已经是完整格式 (4位数字.KL)
+  if (/^\d{4}\.KL$/.test(cleanCode)) {
+    return {
+      valid: true,
+      market: '马股',
+      normalizedCode: cleanCode
+    }
+  }
+
+  // 检查是否是纯4位数字
+  if (/^\d{4}$/.test(cleanCode)) {
+    return {
+      valid: true,
+      market: '马股',
+      normalizedCode: `${cleanCode}.KL`
+    }
+  }
+
+  return {
+    valid: false,
+    message: '马股代码必须是4位数字（如：5347、1155）或带.KL后缀（如：5347.KL）'
   }
 }
 
@@ -116,7 +150,7 @@ export function validateHKStock(code: string): StockValidationResult {
  */
 export function validateStockCode(
   code: string,
-  marketHint?: 'A股' | '美股' | '港股'
+  marketHint?: 'A股' | '美股' | '港股' | '马股'
 ): StockValidationResult {
   if (!code || !code.trim()) {
     return {
@@ -124,9 +158,9 @@ export function validateStockCode(
       message: '请输入股票代码'
     }
   }
-  
+
   const trimmedCode = code.trim()
-  
+
   // 如果提供了市场提示，优先验证该市场
   if (marketHint) {
     switch (marketHint) {
@@ -136,36 +170,44 @@ export function validateStockCode(
         return validateUSStock(trimmedCode)
       case '港股':
         return validateHKStock(trimmedCode)
+      case '马股':
+        return validateMYStock(trimmedCode)
     }
   }
-  
-  // 自动识别：先判断是否全是数字
+
+  // 自动识别：先判断是否带 .KL 后缀（马股）
+  if (/^\d{4}\.KL$/i.test(trimmedCode)) {
+    return validateMYStock(trimmedCode)
+  }
+
+  // 自动识别：判断是否全是数字
   const isNumeric = /^\d+$/.test(trimmedCode.replace(/[^0-9]/g, ''))
-  
+
   if (isNumeric) {
     const cleanCode = trimmedCode.replace(/[^0-9]/g, '')
-    
+
     // 6位数字 -> A股
     if (cleanCode.length === 6) {
       return validateAStock(cleanCode)
     }
-    
-    // 1-5位数字 -> 港股
+
+    // 4位数字 -> 可能是马股或港股，默认识别为港股
+    // 注意：马股通常带 .KL 后缀，不带后缀的4位数字优先识别为港股
     if (cleanCode.length >= 1 && cleanCode.length <= 5) {
       return validateHKStock(cleanCode)
     }
-    
+
     return {
       valid: false,
-      message: '数字代码长度不正确（A股6位，港股1-5位）'
+      message: '数字代码长度不正确（A股6位，港股1-5位，马股4位.KL）'
     }
   }
-  
+
   // 包含字母 -> 美股
   if (/[A-Za-z]/.test(trimmedCode)) {
     return validateUSStock(trimmedCode)
   }
-  
+
   return {
     valid: false,
     message: '无法识别的股票代码格式'
@@ -175,7 +217,7 @@ export function validateStockCode(
 /**
  * 获取股票代码格式说明
  */
-export function getStockCodeFormatHelp(market: 'A股' | '美股' | '港股'): string {
+export function getStockCodeFormatHelp(market: 'A股' | '美股' | '港股' | '马股'): string {
   switch (market) {
     case 'A股':
       return '6位数字，如：000001（平安银行）、600519（贵州茅台）'
@@ -183,6 +225,8 @@ export function getStockCodeFormatHelp(market: 'A股' | '美股' | '港股'): st
       return '1-5个字母，如：AAPL（苹果）、TSLA（特斯拉）'
     case '港股':
       return '1-5位数字，如：700（腾讯）、9988（阿里巴巴）'
+    case '马股':
+      return '4位数字.KL，如：5347.KL（国家能源）、1155.KL（马来亚银行）'
     default:
       return ''
   }
@@ -191,7 +235,7 @@ export function getStockCodeFormatHelp(market: 'A股' | '美股' | '港股'): st
 /**
  * 获取股票代码示例
  */
-export function getStockCodeExamples(market: 'A股' | '美股' | '港股'): string[] {
+export function getStockCodeExamples(market: 'A股' | '美股' | '港股' | '马股'): string[] {
   switch (market) {
     case 'A股':
       return ['000001', '600519', '000858', '300750']
@@ -199,6 +243,8 @@ export function getStockCodeExamples(market: 'A股' | '美股' | '港股'): stri
       return ['AAPL', 'MSFT', 'GOOGL', 'TSLA']
     case '港股':
       return ['00700', '09988', '01810', '03690']
+    case '马股':
+      return ['5347.KL', '1155.KL', '1066.KL', '7113.KL']
     default:
       return []
   }
@@ -209,7 +255,7 @@ export function getStockCodeExamples(market: 'A股' | '美股' | '港股'): stri
  * @param code 原始代码
  * @param market 市场类型
  */
-export function formatStockCode(code: string, market: 'A股' | '美股' | '港股'): string {
+export function formatStockCode(code: string, market: 'A股' | '美股' | '港股' | '马股'): string {
   const validation = validateStockCode(code, market)
   return validation.normalizedCode || code
 }

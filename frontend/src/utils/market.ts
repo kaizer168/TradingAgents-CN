@@ -1,4 +1,4 @@
-// 市场参数规范化：将各类板块/交易所/缩写统一为分析模块支持的 A股/美股/港股
+// 市场参数规范化：将各类板块/交易所/缩写统一为分析模块支持的 A股/美股/港股/马股
 export const normalizeMarketForAnalysis = (market: any): string => {
   const raw = String(market ?? '').trim()
   const upper = raw.toUpperCase()
@@ -8,17 +8,19 @@ export const normalizeMarketForAnalysis = (market: any): string => {
   ].includes(cn) || ['CN', 'SH', 'SZ', 'SSE', 'SZSE'].includes(upper)
   const isHK = ['港股', '港交所'].includes(cn) || ['HK', 'HKEX'].includes(upper)
   const isUS = ['美股', '纳斯达克', '纽交所'].includes(cn) || ['US', 'NASDAQ', 'NYSE', 'AMEX'].includes(upper)
+  const isMY = ['马股', '马来西亚', '大马'].includes(cn) || ['MY', 'KLS', 'BURSA'].includes(upper)
   if (isA) return 'A股'
   if (isHK) return '港股'
   if (isUS) return '美股'
+  if (isMY) return '马股'
   // 默认按A股处理
   return 'A股'
 }
 
 /**
  * 将交易所代码转换为市场类型
- * @param exchangeCode 交易所代码（如 "sz", "sh", "hk", "us"）
- * @returns 市场类型（"A股", "港股", "美股"）
+ * @param exchangeCode 交易所代码（如 "sz", "sh", "hk", "us", "my"）
+ * @returns 市场类型（"A股", "港股", "美股", "马股"）
  */
 export const exchangeCodeToMarket = (exchangeCode: string): string => {
   const code = String(exchangeCode ?? '').toLowerCase().trim()
@@ -38,6 +40,11 @@ export const exchangeCodeToMarket = (exchangeCode: string): string => {
     return '美股'
   }
 
+  // 马来西亚股市交易所代码
+  if (['my', 'kls', 'bursa'].includes(code)) {
+    return '马股'
+  }
+
   // 默认返回A股
   return 'A股'
 }
@@ -45,10 +52,15 @@ export const exchangeCodeToMarket = (exchangeCode: string): string => {
 /**
  * 根据股票代码判断市场类型
  * @param stockCode 股票代码
- * @returns 市场类型（"A股", "港股", "美股"）
+ * @returns 市场类型（"A股", "港股", "美股", "马股"）
  */
 export const getMarketByStockCode = (stockCode: string): string => {
   const code = String(stockCode ?? '').trim().toUpperCase()
+
+  // 马来西亚：4位数字.KL 后缀
+  if (/^\d{4}\.KL$/.test(code)) {
+    return '马股'
+  }
 
   // 港股：明确带 .HK 后缀
   if (code.endsWith('.HK')) {

@@ -558,12 +558,20 @@ export const DEFAULT_MARKET_CATEGORIES: Partial<MarketCategory>[] = [
     sort_order: 3
   },
   {
+    id: 'my_stocks',
+    name: 'my_stocks',
+    display_name: '马股',
+    description: '马来西亚股票市场数据源',
+    enabled: true,
+    sort_order: 4
+  },
+  {
     id: 'crypto',
     name: 'crypto',
     display_name: '数字货币',
     description: '数字货币市场数据源',
     enabled: true,
-    sort_order: 4
+    sort_order: 5
   },
   {
     id: 'futures',
@@ -571,7 +579,7 @@ export const DEFAULT_MARKET_CATEGORIES: Partial<MarketCategory>[] = [
     display_name: '期货',
     description: '期货市场数据源',
     enabled: true,
-    sort_order: 5
+    sort_order: 6
   }
 ]
 
